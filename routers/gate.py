@@ -416,6 +416,37 @@ async def try_assign_plate_to_null_parking(zone: str):
                         f"[ASSIGN] {zone} history_id:{history_id} "
                         f"→ {plate} 번호판 부여 완료!"
                     )
+
+                    # ✅ linked 구역도 같은 번호판으로 업데이트
+                    # Spring Boot에서 linked_zone 조회 후 업데이트
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            # zone 상태 조회해서 linked_zone 확인
+                            zone_res = await client.get(
+                                f"{SPRING_API['zone_status']}/{zone}",
+                                timeout=8,
+                            )
+                            zone_data    = zone_res.json()
+                            linked_zone  = zone_data.get("linked_zone")
+                            if linked_zone:
+                                # linked 구역 history_id 조회
+                                linked_history_id = await find_unmatched_history_id(linked_zone)
+                                if linked_history_id:
+                                    await client.post(
+                                        SPRING_API["assign_plate"],
+                                        json={
+                                            "history_id": linked_history_id,
+                                            "plate":      plate,
+                                        },
+                                        timeout=8,
+                                    )
+                                    print(
+                                        f"[ASSIGN] linked {linked_zone} "
+                                        f"→ {plate} 번호판 부여 완료!"
+                                    )
+                    except Exception as e:
+                        print(f"[ASSIGN] linked 구역 번호판 부여 실패: {e}")
+
                     return
                 else:
                     print(
