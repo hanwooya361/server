@@ -230,6 +230,15 @@ async def handle_entry_quick(event: ParkingEvent):
         # ✅ entry_quick에서는 역추적 시작 안 함
         # OCR 결과(entry) 수신 후 번호판 없을 때만 역추적
 
+        
+
+        # ✅ 통로주차는 OCR 기다리지 않고 즉시 역추적 시작
+        # 일반주차는 OCR 결과(entry) 수신 후 번호판 없을 때만 역추적
+        if event.park_type == "aisle_block":
+            from routers.gate import start_plate_assignment
+            start_plate_assignment(event.zone, immediate=True)
+            print(f"[ENTRY QUICK] {event.zone} 통로주차 → 역추적 즉시 시작")
+
         return {"result": "ok", "event": "entry_quick", "zone": event.zone}
 
     except HTTPException:
