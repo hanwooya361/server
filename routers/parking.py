@@ -100,7 +100,7 @@ async def exit_verify_task(zone_name: str, exit_time: str):
     print(f"[ExitVerify] {zone_name} 감시 시작")
 
     for attempt in range(1, EXIT_VERIFY_MAX + 1):
-        await asyncio.sleep(EXIT_VERIFY_INTERVAL)
+        await asyncio.sleep(EXIT_VERIFY_INTERVAL)#
 
         db_status = (await get_zone_status(zone_name)).lower()
         print(f"[ExitVerify] {zone_name} DB: {db_status} ({attempt}/{EXIT_VERIFY_MAX})")
