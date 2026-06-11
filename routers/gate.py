@@ -228,7 +228,6 @@ async def assign_plate_to_history(history_id: int, plate: str) -> bool:
 
 # ── 7. linked_zone 번호판 업데이트 헬퍼 ──────────────────
 async def update_linked_zone(matched_unknown: dict, plate: str):
-    """역추적 성공 시 linked_zone도 같은 번호판으로 업데이트."""
     from routers.parking import zone_linked_map
     matched_zone = (
         matched_unknown.get("zone") or
@@ -252,16 +251,23 @@ async def update_linked_zone(matched_unknown: dict, plate: str):
 
 
 # ── 8. 전체 역추적 태스크 ─────────────────────────────────
-async def global_assign_task():
+# ✅ immediate=True면 첫 시도 바로 실행 (통로주차용)
+# ✅ immediate=False면 기존대로 5초 대기 후 시작 (일반주차용)
+async def global_assign_task(immediate: bool = False):
     global _assign_task_running
 
     max_retries    = 20
     retry_interval = 5
 
-    print(f"[ASSIGN] 전체 역추적 시작 (최대 {max_retries}회 × {retry_interval}초)")
+    print(f"[ASSIGN] 전체 역추적 시작 "
+          f"(최대 {max_retries}회 × {retry_interval}초 "
+          f"{'즉시' if immediate else '5초 후'} 첫 시도)")
 
     for attempt in range(max_retries):
-        await asyncio.sleep(retry_interval)
+        # ✅ immediate=True(통로주차)면 첫 시도 바로
+        # immediate=False(일반주차)면 기존대로 매번 5초 대기
+        if not immediate or attempt > 0:
+            await asyncio.sleep(retry_interval)
 
         async with pending_lock:
             now     = datetime.now()
@@ -294,7 +300,6 @@ async def global_assign_task():
         if candidates:
             print(f"[ASSIGN] 대기 목록: {[p['plate'] for p in candidates]}")
 
-        # ── 매칭 로직 ──────────────────────────────────
         if len(candidates) == 1 and len(unknowns) == 1:
             plate      = candidates[0]["plate"]
             history_id = unknowns[0].get("history_id")
@@ -351,7 +356,8 @@ async def global_assign_task():
 
 
 # ── 9. 역추적 시작 (외부 호출용) ─────────────────────────
-def start_plate_assignment(zone: str = ""):
+# ✅ immediate 파라미터 추가
+def start_plate_assignment(zone: str = "", immediate: bool = False):
     async def _start():
         global _assign_task_running
         async with _assign_task_lock:
@@ -359,8 +365,9 @@ def start_plate_assignment(zone: str = ""):
                 print(f"[ASSIGN] 역추적 이미 실행 중 → 스킵 (zone={zone})")
                 return
             _assign_task_running = True
-        asyncio.create_task(global_assign_task())
-        print(f"[ASSIGN] 전체 역추적 백그라운드 시작 (zone={zone})")
+        asyncio.create_task(global_assign_task(immediate=immediate))
+        print(f"[ASSIGN] 전체 역추적 백그라운드 시작 "
+              f"(zone={zone} immediate={immediate})")
     asyncio.create_task(_start())
 
 
